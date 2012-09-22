@@ -74,23 +74,18 @@ def do_toggle(button, kanjiset):
 radfont = Pango.FontDescription(str(RADICAL_SIZE))
 smallradfont = Pango.FontDescription(str(RADICAL_SIZE*5//6))
 widgets = []
+extra = []
 laststrokes = None
 for radical, strokes, kanjiset in load_radicals():
 	if strokes != laststrokes:
 		laststrokes = strokes
-		widgets.append(Gtk.Label(str(strokes)))
+		widgets.append((Gtk.Label(str(strokes)), None))
 	b = Gtk.ToggleButton(radical)
 	b.props.relief = Gtk.ReliefStyle.NONE
 	b.get_child().modify_font(radfont if len(radical) == 1 else smallradfont)
-	b.connect('toggled', do_toggle, frozenset(''.join(kanjiset)))
-	widgets.append(b)
-
-# add buttons to table
-w = RADICAL_COLS
-h = (len(widgets) - 1) // w + 1
-tbl = Gtk.Table(w, h)
-for i, b in enumerate(widgets):
-	tbl.attach(b, i%w, i%w+1, i//w, i//w+1)
+	s = frozenset(''.join(kanjiset))
+	b.connect('toggled', do_toggle, s)
+	widgets.append((b, s))
 
 # TextView for results
 buf = Gtk.TextBuffer()
@@ -104,6 +99,51 @@ scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
 scrolled.set_shadow_type(Gtk.ShadowType.IN)
 scrolled.set_size_request(-1, 50)
 scrolled.add(text)
+
+# reset button
+reset = Gtk.Button('Reset')
+extra.append((2, reset))
+def on_reset(button):
+	for btn, kanjis in widgets:
+		if kanjis is not None:
+			btn.set_active(False)
+reset.connect('clicked', on_reset)
+
+# decompose button
+decomp = Gtk.Button('Decompose selected')
+extra.append((4, decomp))
+decomp.set_sensitive(False)
+def on_cursor_moved(buf, prop):
+	sel = buf.get_selection_bounds()
+	if sel:
+		start, end = sel
+		decomp.set_sensitive(end.get_offset() - start.get_offset() == 1)
+buf.connect('notify::cursor-position', on_cursor_moved)
+def on_decompose(button):
+	c = buf.get_selection_bounds()[0].get_char()
+	for btn, kanjis in widgets:
+		if kanjis is not None:
+			btn.set_active(c in kanjis)
+	# reselect char:
+	i = buf.get_start_iter()
+	while i.get_char() != c: i.forward_char()
+	j = i.copy()
+	j.forward_char()
+	buf.select_range(i, j)
+decomp.connect('clicked', on_decompose)
+
+# add buttons to table
+w = RADICAL_COLS
+extracols = sum(e[0] for e in extra)
+h = (len(widgets) - 1 + extracols) // w + 1
+tbl = Gtk.Table(w, h)
+for i, (b, s) in enumerate(widgets):
+	tbl.attach(b, i%w, i%w+1, i//w, i//w+1)
+n = 0
+for i, b in extra:
+	b.set_border_width(4)
+	tbl.attach(b, w-extracols+n, w-extracols+n+i, h-1, h)
+	n += i
 
 status = Gtk.Label()
 status.set_alignment(0, 0)
