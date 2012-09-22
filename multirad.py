@@ -115,9 +115,8 @@ extra.append((4, decomp))
 decomp.set_sensitive(False)
 def on_cursor_moved(buf, prop):
 	sel = buf.get_selection_bounds()
-	if sel:
-		start, end = sel
-		decomp.set_sensitive(end.get_offset() - start.get_offset() == 1)
+	if sel: start, end = sel
+	decomp.set_sensitive(sel and end.get_offset() - start.get_offset() == 1)
 buf.connect('notify::cursor-position', on_cursor_moved)
 def on_decompose(button):
 	c = buf.get_selection_bounds()[0].get_char()
